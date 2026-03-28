@@ -34,4 +34,3 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser = build_parser()
     args = parser.parse_args(argv)
     args.func(args)
-

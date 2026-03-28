@@ -102,7 +102,9 @@ def run_tippecanoe(
     ]
     completed = subprocess.run(cmd, check=False)
     if completed.returncode != 0:
-        raise RuntimeError(f"tippecanoe failed for {output_path} with exit code {completed.returncode}")
+        raise RuntimeError(
+            f"tippecanoe failed for {output_path} with exit code {completed.returncode}"
+        )
 
 
 def build_year_pmtiles(
@@ -136,7 +138,9 @@ def build_year_pmtiles(
 
     rows_written = 0
     progress = tqdm(total=max_features, desc=f"pmtiles {year}", unit="row", dynamic_ncols=True)
-    with tempfile.TemporaryDirectory(prefix=f"{output_path.stem}-fgb-", dir=output_path.parent) as tempdir:
+    with tempfile.TemporaryDirectory(
+        prefix=f"{output_path.stem}-fgb-", dir=output_path.parent
+    ) as tempdir:
         staging_path = Path(tempdir) / f"{output_path.stem}.fgb"
         first_batch = True
         try:

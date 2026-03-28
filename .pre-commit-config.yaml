@@ -44,6 +44,14 @@ repos:
 
   - repo: local
     hooks:
+      - id: biome-check
+        name: biome check
+        entry: biome check --write
+        language: node
+        additional_dependencies:
+          - "@biomejs/biome@1.9.4"
+        files: '^(app/|index\\.html$|vite\\.config\\.js$|package\\.json$|biome\\.json$)'
+
       - id: uv-lock
         name: Lock dependencies with uv
         entry: uv lock

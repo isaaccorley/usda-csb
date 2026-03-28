@@ -82,7 +82,9 @@ def build_geo_metadata(
     ).encode("utf-8")
 
 
-def quantize_coordinates(values: np.ndarray, *, lower: float, upper: float, bits: int) -> np.ndarray:
+def quantize_coordinates(
+    values: np.ndarray, *, lower: float, upper: float, bits: int
+) -> np.ndarray:
     scale = (1 << bits) - 1
     normalized = (values - lower) / (upper - lower)
     normalized = np.clip(normalized, 0.0, 1.0)
@@ -260,7 +262,9 @@ def write_partitioned_dataset(
 
         features_total = meta.get("features")
         if max_features is not None:
-            features_total = min(features_total, max_features) if features_total is not None else max_features
+            features_total = (
+                min(features_total, max_features) if features_total is not None else max_features
+            )
 
         feature_bar = (
             tqdm(
@@ -328,7 +332,9 @@ def write_partitioned_dataset(
 
         row_size_bytes = max(1, int(table.nbytes / max(1, table.num_rows)))
         target_file_rows = max(1, int((target_file_size_mb * 1024 * 1024) / row_size_bytes))
-        target_row_group_rows = max(1, int((target_row_group_size_mb * 1024 * 1024) / row_size_bytes))
+        target_row_group_rows = max(
+            1, int((target_row_group_size_mb * 1024 * 1024) / row_size_bytes)
+        )
 
         file_part = 0
         for start in range(0, table.num_rows, target_file_rows):
@@ -475,7 +481,7 @@ def run(args: argparse.Namespace) -> None:
 
     info = pyogrio.read_info(source, layer=args.layer, force_total_bounds=True)
     bounds = cast(
-        tuple[float, float, float, float],
+        "tuple[float, float, float, float]",
         tuple(float(v) for v in info["total_bounds"]),
     )
     cols, rows = parse_chunk_grid(args.chunk_grid, args.jobs)

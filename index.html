@@ -42,6 +42,7 @@
               Source Coop
             </a>
           </p>
+          <div id="status" class="status-line" role="status" aria-live="polite">Connecting</div>
 
           <div class="control-grid">
             <div class="control-row control-row-wide control-row-triple">
@@ -66,6 +67,24 @@
                   aria-pressed="true"
                 >
                   Satellite
+                </button>
+              </div>
+            </div>
+
+            <div class="control-row control-row-wide aoi-section" aria-label="Area of interest export">
+              <div class="section-head compact">
+                <span>AOI Export</span>
+                <span id="aoi-summary" class="legend-note">None selected</span>
+              </div>
+              <p class="aoi-hint">Hold Shift and drag on the map to draw a bounding box.</p>
+              <div class="aoi-controls">
+                <label class="control-label" for="download-format">Format</label>
+                <select id="download-format" class="select-input" aria-label="Download format">
+                  <option value="geoparquet" selected>GeoParquet</option>
+                  <option value="geojson">GeoJSON</option>
+                </select>
+                <button id="download-aoi" class="toggle-button" type="button" disabled>
+                  Download AOI
                 </button>
               </div>
             </div>
