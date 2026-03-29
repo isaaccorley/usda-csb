@@ -4,7 +4,7 @@ import argparse
 import json
 import subprocess
 import tempfile
-from collections.abc import Sequence
+from collections.abc import Sequence  # noqa: TC003
 from pathlib import Path
 
 import pyarrow as pa

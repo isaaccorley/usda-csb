@@ -4,7 +4,7 @@ import argparse
 import json
 import math
 import shutil
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence  # noqa: TC003
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -24,6 +24,8 @@ from tqdm.auto import tqdm
 @dataclass(frozen=True)
 class Chunk:
     chunk_id: int
+    col: int
+    row: int
     bbox: tuple[float, float, float, float]
     where: str
 
@@ -107,6 +109,15 @@ def bbox_struct_array(bounds: np.ndarray) -> pa.StructArray:
     return pa.StructArray.from_arrays(arrays, names=["xmin", "ymin", "xmax", "ymax"])
 
 
+def flat_bbox_columns(bounds: np.ndarray, *, prefix: str) -> list[tuple[str, pa.Array]]:
+    return [
+        (f"{prefix}_xmin", pa.array(bounds[:, 0], type=pa.float64())),
+        (f"{prefix}_ymin", pa.array(bounds[:, 1], type=pa.float64())),
+        (f"{prefix}_xmax", pa.array(bounds[:, 2], type=pa.float64())),
+        (f"{prefix}_ymax", pa.array(bounds[:, 3], type=pa.float64())),
+    ]
+
+
 def chunk_where_clause(
     xmin: float,
     xmax: float,
@@ -152,6 +163,8 @@ def build_chunks(bounds: tuple[float, float, float, float], cols: int, rows: int
         for col in range(cols):
             chunk = Chunk(
                 chunk_id=chunk_id,
+                col=col,
+                row=row,
                 bbox=(
                     float(x_edges[col]),
                     float(y_edges[row]),
@@ -181,6 +194,7 @@ def sort_and_attach_spatial_columns(
     table = pa.Table.from_batches([batch])
 
     geometries = shapely.from_wkb(batch[geometry_column])
+    source_bounds = np.asarray(shapely.bounds(geometries), dtype="float64")
     if transformer is not None:
         geometries = shapely.transform(geometries, transformer.transform, interleaved=False)
 
@@ -198,13 +212,15 @@ def sort_and_attach_spatial_columns(
     table = table.take(sort_idx_array)
     geom_wkb = geom_wkb.take(sort_idx_array)
     bbox_column = bbox_struct_array(bounds).take(sort_idx_array)
+    source_bounds = source_bounds[sort_idx]
     hilbert_column = pa.array(hilbert[sort_idx], type=pa.uint64())
 
     geometry_index = table.schema.get_field_index(geometry_column)
     table = table.set_column(geometry_index, "geometry", geom_wkb)
     table = table.append_column("bbox", bbox_column)
-    table = table.append_column("__hilbert", hilbert_column)
-    return table
+    for name, column in flat_bbox_columns(source_bounds, prefix="source_bbox"):
+        table = table.append_column(name, column)
+    return table.append_column("__hilbert", hilbert_column)
 
 
 @contextmanager
@@ -214,7 +230,7 @@ def iter_batches(
     layer: str,
     batch_size: int,
     where: str | None = None,
-):
+) -> Iterator[tuple[dict[str, object], pa.RecordBatchReader]]:
     with pyogrio.open_arrow(
         source,
         layer=layer,
@@ -222,7 +238,7 @@ def iter_batches(
         where=where,
         use_pyarrow=True,
     ) as source_and_reader:
-        yield source_and_reader
+        yield cast("tuple[dict[str, object], pa.RecordBatchReader]", source_and_reader)
 
 
 def write_partitioned_dataset(
@@ -241,10 +257,11 @@ def write_partitioned_dataset(
     clear_output: bool = True,
     require_nonempty: bool = True,
 ) -> bool:
-    with iter_batches(source, layer=layer, batch_size=batch_size, where=where) as (meta, reader):
-        geometry_column = meta["geometry_name"] or "wkb_geometry"
-        geometry_type = normalize_geometry_type(meta.get("geometry_type"))
-        source_crs = resolve_crs(meta.get("crs"))
+    with iter_batches(source, layer=layer, batch_size=batch_size, where=where) as source_and_reader:
+        meta, reader = cast("tuple[dict[str, object], pa.RecordBatchReader]", source_and_reader)
+        geometry_column = cast("str", meta.get("geometry_name") or "wkb_geometry")
+        geometry_type = normalize_geometry_type(cast("str | None", meta.get("geometry_type")))
+        source_crs = resolve_crs(cast("object | None", meta.get("crs")))
         target_crs = CRS.from_epsg(4326)
         transformer = None
         if source_crs is not None and not source_crs.equals(target_crs):
@@ -260,7 +277,7 @@ def write_partitioned_dataset(
         output_dir.mkdir(parents=True, exist_ok=True)
         rows_remaining = max_features
 
-        features_total = meta.get("features")
+        features_total = cast("int | None", meta.get("features"))
         if max_features is not None:
             features_total = (
                 min(features_total, max_features) if features_total is not None else max_features
@@ -336,8 +353,7 @@ def write_partitioned_dataset(
             1, int((target_row_group_size_mb * 1024 * 1024) / row_size_bytes)
         )
 
-        file_part = 0
-        for start in range(0, table.num_rows, target_file_rows):
+        for file_part, start in enumerate(range(0, table.num_rows, target_file_rows)):
             end = min(start + target_file_rows, table.num_rows)
             file_path = output_dir / f"{output_stem}{file_prefix}{file_part:05d}.parquet"
             pq.write_table(
@@ -346,7 +362,6 @@ def write_partitioned_dataset(
                 compression="zstd",
                 row_group_size=target_row_group_rows,
             )
-            file_part += 1
             if file_bar is not None:
                 file_bar.update(1)
 
@@ -367,12 +382,15 @@ def run_chunk_export(
     target_file_size_mb: int,
     target_row_group_size_mb: int,
     chunk_id: int,
+    col: int,
+    row: int,
     where: str,
 ) -> int:
+    chunk_output_dir = Path(output_dir) / f"tile_x={col:03d}" / f"tile_y={row:03d}"
     write_partitioned_dataset(
         source,
         layer=layer,
-        output_dir=Path(output_dir),
+        output_dir=chunk_output_dir,
         output_stem=output_stem,
         batch_size=batch_size,
         max_features=None,
@@ -385,6 +403,85 @@ def run_chunk_export(
         require_nonempty=False,
     )
     return chunk_id
+
+
+def file_bbox_from_metadata(parquet_path: Path) -> tuple[float, float, float, float]:
+    parquet_file = pq.ParquetFile(parquet_path)
+    bbox_columns = {
+        "bbox.xmin": [],
+        "bbox.ymin": [],
+        "bbox.xmax": [],
+        "bbox.ymax": [],
+    }
+
+    for row_group_index in range(parquet_file.metadata.num_row_groups):
+        row_group = parquet_file.metadata.row_group(row_group_index)
+        for column_index in range(row_group.num_columns):
+            column = row_group.column(column_index)
+            if column.path_in_schema not in bbox_columns:
+                continue
+            stats = column.statistics
+            if stats is None:
+                raise RuntimeError(
+                    f"Missing statistics for {column.path_in_schema} in {parquet_path}"
+                )
+            bbox_columns[column.path_in_schema].append((float(stats.min), float(stats.max)))
+
+    if not all(bbox_columns.values()):
+        raise RuntimeError(f"Missing bbox columns in {parquet_path}")
+
+    return (
+        min(value[0] for value in bbox_columns["bbox.xmin"]),
+        min(value[0] for value in bbox_columns["bbox.ymin"]),
+        max(value[1] for value in bbox_columns["bbox.xmax"]),
+        max(value[1] for value in bbox_columns["bbox.ymax"]),
+    )
+
+
+def manifest_rows(output_dir: Path) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for parquet_path in sorted(output_dir.glob("tile_x=*/tile_y=*/*.parquet")):
+        tile_x = int(parquet_path.parent.parent.name.split("=", 1)[1])
+        tile_y = int(parquet_path.parent.name.split("=", 1)[1])
+        xmin, ymin, xmax, ymax = file_bbox_from_metadata(parquet_path)
+        parquet_file = pq.ParquetFile(parquet_path)
+        rows.append(
+            {
+                "path": parquet_path.relative_to(output_dir).as_posix(),
+                "tile_x": tile_x,
+                "tile_y": tile_y,
+                "xmin": xmin,
+                "ymin": ymin,
+                "xmax": xmax,
+                "ymax": ymax,
+                "num_rows": parquet_file.metadata.num_rows,
+                "file_size": parquet_path.stat().st_size,
+            }
+        )
+    return rows
+
+
+def write_manifest(output_dir: Path) -> Path:
+    rows = manifest_rows(output_dir)
+    manifest_path = output_dir / "manifest.parquet"
+    manifest_table = pa.Table.from_pylist(
+        rows,
+        schema=pa.schema(
+            [
+                ("path", pa.string()),
+                ("tile_x", pa.int32()),
+                ("tile_y", pa.int32()),
+                ("xmin", pa.float64()),
+                ("ymin", pa.float64()),
+                ("xmax", pa.float64()),
+                ("ymax", pa.float64()),
+                ("num_rows", pa.int64()),
+                ("file_size", pa.int64()),
+            ]
+        ),
+    )
+    pq.write_table(manifest_table, manifest_path, compression="zstd")
+    return manifest_path
 
 
 def add_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
@@ -417,13 +514,13 @@ def add_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     parser.add_argument(
         "--target-file-size-mb",
         type=int,
-        default=512,
+        default=32,
         help="Target shard size in MB. Files will be split around this size.",
     )
     parser.add_argument(
         "--target-row-group-size-mb",
         type=int,
-        default=192,
+        default=8,
         help="Target Parquet row-group size in MB.",
     )
     parser.add_argument(
@@ -436,12 +533,12 @@ def add_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
         "--jobs",
         type=int,
         default=16,
-        help="Number of worker processes. Values greater than 1 use coarse spatial chunks.",
+        help="Number of worker processes. Values greater than 1 use spatial tiles and partitioned output.",
     )
     parser.add_argument(
         "--chunk-grid",
-        default=None,
-        help="Optional coarse chunk grid in COLSxROWS format, for example 4x2.",
+        default="32x16",
+        help="Spatial tile grid in COLSxROWS format, for example 32x16, used for partitioning.",
     )
     return parser
 
@@ -504,6 +601,8 @@ def run(args: argparse.Namespace) -> None:
                 target_file_size_mb=args.target_file_size_mb,
                 target_row_group_size_mb=args.target_row_group_size_mb,
                 chunk_id=chunk.chunk_id,
+                col=chunk.col,
+                row=chunk.row,
                 where=chunk.where,
             ): chunk.chunk_id
             for chunk in chunks
@@ -512,6 +611,8 @@ def run(args: argparse.Namespace) -> None:
             chunk_bar.set_postfix_str(f"chunk {future.result()}")
             chunk_bar.update(1)
     chunk_bar.close()
+
+    write_manifest(output_dir)
 
 
 def main(argv: Sequence[str] | None = None) -> None:

@@ -482,34 +482,19 @@ h1 {
   display: none;
 }
 
-.popup {
+.field-popup .maplibregl-popup-content {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.field-popup-content {
   color: #1a1d17;
   font-family: "IBM Plex Sans", system-ui, sans-serif;
-}
-
-.popup-title {
-  font-size: 1.02rem;
-  font-weight: 700;
-  margin-bottom: 10px;
-}
-
-.popup-grid {
-  display: grid;
-  gap: 8px;
-}
-
-.popup-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.popup-row span {
-  color: #66705d;
-}
-
-.popup-row strong {
-  text-align: right;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.05;
+  white-space: nowrap;
 }
 
 .maplibregl-popup-content {

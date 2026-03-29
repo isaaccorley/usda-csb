@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Sequence
+from collections.abc import Sequence  # noqa: TC003
 
 from .build_pmtiles import add_arguments as add_pmtiles_arguments
 from .build_pmtiles import run as run_pmtiles

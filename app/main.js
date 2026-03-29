@@ -16,8 +16,6 @@ const pmtilesBaseUrl = (
 const geoparquetSource =
   import.meta.env.VITE_CSB_GEOPARQUET_URL ?? "s3://ftw/usda-csb/csb.parquet/";
 const minimumBoxPixels = 4;
-const sourceCrs = "EPSG:5070";
-const exportCrs = "EPSG:4326";
 const viewStateStorageKey = "usda-csb:view-state";
 
 const geoParquetMetadata = JSON.stringify({
@@ -28,116 +26,51 @@ const geoParquetMetadata = JSON.stringify({
       encoding: "WKB",
       crs: {
         $schema: "https://proj.org/schemas/v0.7/projjson.schema.json",
-        type: "ProjectedCRS",
-        name: "NAD83 / Conus Albers",
-        base_crs: {
-          name: "NAD83",
-          datum: {
-            type: "GeodeticReferenceFrame",
-            name: "North American Datum 1983",
-            ellipsoid: {
-              name: "GRS 1980",
-              semi_major_axis: 6378137,
-              inverse_flattening: 298.257222101,
-            },
-          },
-          coordinate_system: {
-            subtype: "ellipsoidal",
-            axis: [
-              {
-                name: "Geodetic latitude",
-                abbreviation: "Lat",
-                direction: "north",
-                unit: "degree",
-              },
-              {
-                name: "Geodetic longitude",
-                abbreviation: "Lon",
-                direction: "east",
-                unit: "degree",
-              },
-            ],
-          },
-          id: { authority: "EPSG", code: 4269 },
-        },
-        conversion: {
-          name: "Conus Albers",
-          method: {
-            name: "Albers Equal Area",
-            id: { authority: "EPSG", code: 9822 },
-          },
-          parameters: [
-            {
-              name: "Latitude of false origin",
-              value: 23,
-              unit: "degree",
-              id: { authority: "EPSG", code: 8821 },
-            },
-            {
-              name: "Longitude of false origin",
-              value: -96,
-              unit: "degree",
-              id: { authority: "EPSG", code: 8822 },
-            },
-            {
-              name: "Latitude of 1st standard parallel",
-              value: 29.5,
-              unit: "degree",
-              id: { authority: "EPSG", code: 8823 },
-            },
-            {
-              name: "Latitude of 2nd standard parallel",
-              value: 45.5,
-              unit: "degree",
-              id: { authority: "EPSG", code: 8824 },
-            },
-            {
-              name: "Easting at false origin",
-              value: 0,
-              unit: "metre",
-              id: { authority: "EPSG", code: 8826 },
-            },
-            {
-              name: "Northing at false origin",
-              value: 0,
-              unit: "metre",
-              id: { authority: "EPSG", code: 8827 },
-            },
+        type: "GeographicCRS",
+        name: "WGS 84",
+        datum_ensemble: {
+          name: "World Geodetic System 1984 ensemble",
+          members: [
+            { name: "World Geodetic System 1984 (Transit)", id: { authority: "EPSG", code: 1166 } },
+            { name: "World Geodetic System 1984 (G730)", id: { authority: "EPSG", code: 1152 } },
+            { name: "World Geodetic System 1984 (G873)", id: { authority: "EPSG", code: 1153 } },
+            { name: "World Geodetic System 1984 (G1150)", id: { authority: "EPSG", code: 1154 } },
+            { name: "World Geodetic System 1984 (G1674)", id: { authority: "EPSG", code: 1155 } },
+            { name: "World Geodetic System 1984 (G1762)", id: { authority: "EPSG", code: 1156 } },
+            { name: "World Geodetic System 1984 (G2139)", id: { authority: "EPSG", code: 1309 } },
+            { name: "World Geodetic System 1984 (G2296)", id: { authority: "EPSG", code: 1383 } },
           ],
+          ellipsoid: {
+            name: "WGS 84",
+            semi_major_axis: 6378137,
+            inverse_flattening: 298.257223563,
+          },
+          id: { authority: "EPSG", code: 4326 },
         },
         coordinate_system: {
-          subtype: "Cartesian",
+          subtype: "ellipsoidal",
           axis: [
             {
-              name: "Easting",
-              abbreviation: "X",
-              direction: "east",
-              unit: "metre",
+              name: "Geodetic latitude",
+              abbreviation: "Lat",
+              direction: "north",
+              unit: "degree",
             },
             {
-              name: "Northing",
-              abbreviation: "Y",
-              direction: "north",
-              unit: "metre",
+              name: "Geodetic longitude",
+              abbreviation: "Lon",
+              direction: "east",
+              unit: "degree",
             },
           ],
         },
-        scope: "Data analysis and small scale data presentation for contiguous lower 48 states.",
-        area: "United States (USA) - CONUS onshore - Alabama; Arizona; Arkansas; California; Colorado; Connecticut; Delaware; Florida; Georgia; Idaho; Illinois; Indiana; Iowa; Kansas; Kentucky; Louisiana; Maine; Maryland; Massachusetts; Michigan; Minnesota; Mississippi; Missouri; Montana; Nebraska; Nevada; New Hampshire; New Jersey; New Mexico; New York; North Carolina; North Dakota; Ohio; Oklahoma; Oregon; Pennsylvania; Rhode Island; South Carolina; South Dakota; Tennessee; Texas; Utah; Vermont; Virginia; Washington; West Virginia; Wisconsin; Wyoming.",
-        bbox: {
-          south_latitude: 24.41,
-          west_longitude: -124.79,
-          north_latitude: 49.38,
-          east_longitude: -66.91,
-        },
-        id: { authority: "EPSG", code: 5070 },
-      },
-      covering: {
-        bbox: {
-          xmin: ["bbox", "xmin"],
-          ymin: ["bbox", "ymin"],
-          xmax: ["bbox", "xmax"],
-          ymax: ["bbox", "ymax"],
+        covering: {
+          bbox: {
+            xmin: ["bbox", "xmin"],
+            ymin: ["bbox", "ymin"],
+            xmax: ["bbox", "xmax"],
+            ymax: ["bbox", "ymax"],
+          },
         },
       },
     },
@@ -273,9 +206,10 @@ const state = {
   duckdbWorker: null,
   exporting: false,
   popup: new maplibregl.Popup({
-    closeButton: true,
+    closeButton: false,
     closeOnClick: true,
-    maxWidth: "320px",
+    className: "field-popup",
+    maxWidth: "180px",
   }),
 };
 
@@ -439,29 +373,43 @@ mapEl?.parentElement?.append(selectionBoxEl);
 
 function sourcePathForDuckDB() {
   const path = geoparquetSource.trim();
+  const trimmedPath = path.replace(/\/+$/, "");
 
-  if (path.endsWith("/")) {
-    const trimmedPath = path.replace(/\/+$/, "");
-    if (trimmedPath.endsWith(".parquet")) {
-      return `${trimmedPath}/part-c*.parquet`;
-    }
-    return `${trimmedPath}/*.parquet`;
+  if (/[?*\[\]]/.test(path)) {
+    return path;
   }
 
-  if (path.endsWith(".parquet")) {
-    return `${path}/part-c*.parquet`;
+  if (trimmedPath.endsWith(".parquet")) {
+    return `${trimmedPath}/**/*.parquet`;
   }
 
-  return `${path}/*.parquet`;
+  return `${trimmedPath}/**/*.parquet`;
+}
+
+function basePathForDataset() {
+  const path = geoparquetSource.trim();
+  return path.replace(/\/+$/, "");
 }
 
 const parquetPath = sourcePathForDuckDB();
+const datasetBasePath = basePathForDataset();
+const manifestPath = (
+  import.meta.env.VITE_CSB_MANIFEST_URL ?? `${datasetBasePath}/manifest.parquet`
+).trim();
 
 function sqlEscape(value) {
   return value.replaceAll("'", "''");
 }
 
-function bboxToFilterSql(bbox) {
+function parquetSourceSql(paths) {
+  if (paths.length === 1) {
+    return `'${sqlEscape(paths[0])}'`;
+  }
+
+  return `[${paths.map((path) => `'${sqlEscape(path)}'`).join(", ")}]`;
+}
+
+function bboxToFilterSql(bbox, paths) {
   const [xmin, ymin, xmax, ymax] = bbox;
   const x0 = xmin.toFixed(12);
   const y0 = ymin.toFixed(12);
@@ -469,15 +417,10 @@ function bboxToFilterSql(bbox) {
   const y1 = ymax.toFixed(12);
   return `
     WITH aoi AS (
-      SELECT ST_Transform(
-        ST_MakeEnvelope(${x0}, ${y0}, ${x1}, ${y1}),
-        '${exportCrs}',
-        '${sourceCrs}',
-        true
-      ) AS geom
+      SELECT ST_MakeEnvelope(${x0}, ${y0}, ${x1}, ${y1}) AS geom
     )
     SELECT *
-    FROM read_parquet('${sqlEscape(parquetPath)}', union_by_name = true), aoi
+    FROM read_parquet(${parquetSourceSql(paths)}, union_by_name = true), aoi
     WHERE bbox.xmax >= ST_XMin(aoi.geom)
       AND bbox.xmin <= ST_XMax(aoi.geom)
       AND bbox.ymax >= ST_YMin(aoi.geom)
@@ -513,6 +456,10 @@ function tableToObjects(table) {
     }
     return normalizeScalar(row);
   });
+}
+
+function filePathsFromManifestRows(rows) {
+  return rows.map((row) => `${datasetBasePath}/${String(row.path).replace(/^\/+/, "")}`);
 }
 
 function formatAoiSummary(bbox) {
@@ -585,6 +532,43 @@ async function initDuckDb() {
   return { db, conn };
 }
 
+async function resolveCandidateParquetPaths(conn, bbox) {
+  const [xmin, ymin, xmax, ymax] = bbox;
+  const x0 = xmin.toFixed(12);
+  const y0 = ymin.toFixed(12);
+  const x1 = xmax.toFixed(12);
+  const y1 = ymax.toFixed(12);
+  const manifestStartedAt = performance.now();
+
+  try {
+    const resultTable = await conn.query(`
+      SELECT path
+      FROM read_parquet('${sqlEscape(manifestPath)}')
+      WHERE xmax >= ${x0}
+        AND xmin <= ${x1}
+        AND ymax >= ${y0}
+        AND ymin <= ${y1}
+      ORDER BY tile_x, tile_y, path
+    `);
+    const rows = tableToObjects(resultTable);
+    const paths = filePathsFromManifestRows(rows);
+    console.debug(
+      `[aoi-export] manifest-select ${Math.round(performance.now() - manifestStartedAt)}ms files=${paths.length}`,
+    );
+    return paths;
+  } catch (error) {
+    console.warn("[aoi-export] manifest-select-failed", error);
+    console.debug(
+      `[aoi-export] manifest-fallback ${Math.round(performance.now() - manifestStartedAt)}ms`,
+    );
+    return [parquetPath];
+  }
+}
+
+function setExportStatus(message) {
+  setStatus(message);
+}
+
 function pointFromMouseEvent(event) {
   const container = map.getCanvasContainer();
   const rect = container.getBoundingClientRect();
@@ -649,43 +633,102 @@ function exportFilename(ext) {
   return `csb_${datasetYear}_aoi_${stamp}.${ext}`;
 }
 
+function opfsExportPath() {
+  return `opfs://aoi_export_${Date.now()}.parquet`;
+}
+
 async function exportGeoParquet({ db, conn, bbox }) {
   const exportStartedAt = performance.now();
-  const filterSql = bboxToFilterSql(bbox);
-  const outputPath = "/aoi_export.parquet";
+  setExportStatus("Finding intersecting tiles...");
+  const paths = await resolveCandidateParquetPaths(conn, bbox);
+  if (paths.length === 0) {
+    throw new Error("AOI does not intersect any parquet tiles.");
+  }
+  setExportStatus(`Preparing ${paths.length} tile${paths.length === 1 ? "" : "s"}...`);
+  const filterSql = bboxToFilterSql(bbox, paths);
   const metadata = sqlEscape(geoParquetMetadata);
-  const copyStartedAt = performance.now();
-  await conn.query(`
-    COPY (
-      ${filterSql}
-    ) TO '${outputPath}'
-    (FORMAT PARQUET, COMPRESSION ZSTD, KV_METADATA { geo: '${metadata}' })
-  `);
-  console.debug(`[aoi-export] parquet-copy ${Math.round(performance.now() - copyStartedAt)}ms`);
-  const bufferStartedAt = performance.now();
-  const bytes = await db.copyFileToBuffer(outputPath);
-  console.debug(`[aoi-export] parquet-buffer ${Math.round(performance.now() - bufferStartedAt)}ms`);
-  console.debug(
-    `[aoi-export] parquet-total ${Math.round(performance.now() - exportStartedAt)}ms size=${bytes.byteLength}`,
-  );
-  return {
-    bytes,
-    filename: exportFilename("parquet"),
-    mimeType: "application/vnd.apache.parquet",
+  const strategyErrors = [];
+
+  const runCopyAndBuffer = async (outputPath) => {
+    setExportStatus("Building GeoParquet...");
+    const copyStartedAt = performance.now();
+    await conn.query(`
+      COPY (
+        ${filterSql}
+      ) TO '${outputPath}'
+      (FORMAT PARQUET, COMPRESSION SNAPPY, KV_METADATA { geo: '${metadata}' })
+    `);
+    console.debug(`[aoi-export] parquet-copy ${Math.round(performance.now() - copyStartedAt)}ms`);
+    setExportStatus("Finalizing download...");
+    const bufferStartedAt = performance.now();
+    const bytes = await db.copyFileToBuffer(outputPath);
+    console.debug(
+      `[aoi-export] parquet-buffer ${Math.round(performance.now() - bufferStartedAt)}ms`,
+    );
+    return bytes;
   };
+
+  const opfsPath = opfsExportPath();
+  const opfsSupported =
+    typeof navigator !== "undefined" &&
+    navigator.storage &&
+    typeof navigator.storage.getDirectory === "function";
+
+  if (opfsSupported) {
+    try {
+      const registerStartedAt = performance.now();
+      await db.registerOPFSFileName(opfsPath);
+      console.debug(
+        `[aoi-export] parquet-opfs-register ${Math.round(performance.now() - registerStartedAt)}ms`,
+      );
+      const bytes = await runCopyAndBuffer(opfsPath);
+      console.debug(
+        `[aoi-export] parquet-total ${Math.round(performance.now() - exportStartedAt)}ms size=${bytes.byteLength}`,
+      );
+      return {
+        bytes,
+        filename: exportFilename("parquet"),
+        mimeType: "application/vnd.apache.parquet",
+      };
+    } catch (error) {
+      strategyErrors.push(
+        `opfs export failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      console.warn("[aoi-export] parquet-opfs-failed", error);
+    } finally {
+      try {
+        await db.dropFile(opfsPath);
+      } catch {
+        // no-op
+      }
+    }
+  } else {
+    strategyErrors.push(
+      "opfs export unavailable: browser does not expose navigator.storage.getDirectory",
+    );
+  }
+
+  throw new Error(`GeoParquet export failed (${strategyErrors.join("; ")})`);
 }
 
 async function exportGeoJson({ conn, bbox }) {
   const exportStartedAt = performance.now();
-  const filterSql = bboxToFilterSql(bbox);
+  setExportStatus("Finding intersecting tiles...");
+  const paths = await resolveCandidateParquetPaths(conn, bbox);
+  if (paths.length === 0) {
+    throw new Error("AOI does not intersect any parquet tiles.");
+  }
+  setExportStatus(`Reading ${paths.length} tile${paths.length === 1 ? "" : "s"}...`);
+  const filterSql = bboxToFilterSql(bbox, paths);
   const queryStartedAt = performance.now();
   const resultTable = await conn.query(`
     SELECT
       * EXCLUDE (geometry),
-      ST_AsGeoJSON(ST_Transform(geometry, '${sourceCrs}', '${exportCrs}', true)) AS geometry_json
+      ST_AsGeoJSON(geometry) AS geometry_json
     FROM (${filterSql})
   `);
   console.debug(`[aoi-export] geojson-query ${Math.round(performance.now() - queryStartedAt)}ms`);
+  setExportStatus("Finalizing download...");
   const rows = tableToObjects(resultTable);
   const features = rows.map((row) => {
     const { geometry_json: geometryJson, ...properties } = row;
@@ -1057,14 +1100,8 @@ function formatPopupContent(properties) {
   const cdlLabel = Number.isFinite(cdlValue)
     ? (cdlClassLabels.get(cdlValue) ?? `CDL ${cdlValue}`)
     : "n/a";
-  const rows = `<div class="popup-row"><span>CDL class</span><strong>${cdlLabel}</strong></div>`;
 
-  return `
-    <div class="popup">
-      <div class="popup-title">Field</div>
-      <div class="popup-grid">${rows}</div>
-    </div>
-  `;
+  return `<div class="field-popup-content">${cdlLabel}</div>`;
 }
 
 function getOverlayFeatureAtPoint(point) {
@@ -1179,12 +1216,13 @@ function wireAoiDownload() {
     const format = downloadFormatEl.value === "geojson" ? "geojson" : "geoparquet";
     state.exporting = true;
     setDownloadEnabled(false);
-    setStatus(`Exporting ${format}...`);
+    setStatus(`Starting ${format} export...`);
 
     try {
       const result = await runAoiExport(format);
+      setStatus("Handing file to browser...");
       downloadBytes(result.bytes, result.filename, result.mimeType);
-      setStatus(`Downloaded ${format}`);
+      setStatus(`Download started: ${format}`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "AOI export failed");
     } finally {
